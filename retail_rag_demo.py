@@ -7,6 +7,15 @@ from sentence_transformers import SentenceTransformer
 from transformers import pipeline
 import torch
 
+
+from dotenv import load_dotenv
+load_dotenv()
+
+
+from openai import OpenAI
+client = OpenAI()
+
+
 # ─────────────────────────────────────────────
 # 1. Generate Synthetic Retail Sales Dataset
 # ─────────────────────────────────────────────
@@ -14,6 +23,16 @@ import torch
 random.seed(42)
 REGIONS = ["North", "South", "East", "West"]
 PRODUCTS = ["Widget A", "Widget B", "Widget C", "Gadget X", "Gadget Y"]
+
+
+def call_llm(prompt: str, max_new_tokens=140, temperature=0.2):
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=max_new_tokens,
+        temperature=temperature,
+    )
+    return response.choices[0].message.content.strip()
 
 
 def generate_retail_data(n_days=90):
@@ -115,35 +134,6 @@ def retrieve_summaries_local(query: str, k: int = 5):
     scores = (sub_emb @ q.T).ravel()
     top = np.argsort(-scores)[:k]
     return [(texts[cand_idx[i]], metas[cand_idx[i]], float(scores[i])) for i in top]
-
-
-# ─────────────────────────────────────────────
-# 5. Local LLM (Flan-T5-base)
-# ─────────────────────────────────────────────
-
-#llm = pipeline("text2text-generation", model="google/flan-t5-base", device_map="auto")
-
-device = 0 if torch.cuda.is_available() else -1
-
-print(f"Loading LLM on device: {'CUDA/GPU' if device == 0 else 'CPU'}...")
-llm = pipeline(
-    "text2text-generation", 
-    model="google/flan-t5-base", 
-    device=device
-)
-
-
-def call_llm(prompt: str, max_new_tokens=140, temperature=0.2):
-    out = llm(
-        prompt,
-        max_new_tokens=max_new_tokens,
-        do_sample=True,
-        temperature=temperature,
-        top_p=0.9,
-        repetition_penalty=1.25,
-        num_return_sequences=1,
-    )
-    return out[0]["generated_text"].strip()
 
 
 # ─────────────────────────────────────────────
